@@ -1,6 +1,5 @@
 from Client import APIClient
 from ConfigManager import ConfigManager
-import requests
 
 
 class GPMConsumer:
@@ -8,19 +7,25 @@ class GPMConsumer:
     API Consumer for GPM (Green Power Monitor) API.
     '''
 
-    datalistv2Keys = {
+    configKeys = {
         # query parameters for datalistv2 endpoint
-        'datasourceIds': list,
+        'api_token': str,
+        'plant_id': int,
+        'element_id': int,
+        'startDate': str,
+        'endDate': str,
+        'dataSourceIds': (list, int),
         'grouping': str,
         'granularity': int,
-        'aggregation': int,
+        'aggregationType': int,
+        'signals': (list, str),
     }
 
     def __init__(self, prefix='gpm'):
         self.config_manager = ConfigManager(
             config_path=f'{prefix}_config.json',
             env_path=f'{prefix}.env',
-            config_keys=GPMConsumer.datalistv2Keys
+            config_keys=GPMConsumer.configKeys
         )
         self.client = APIClient(self.config_manager._env['API_BASE_URL'])
 

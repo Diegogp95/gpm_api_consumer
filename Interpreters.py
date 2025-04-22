@@ -7,7 +7,7 @@ class GPMInterpreter:
     Interpreter for GPM (Green Power Monitor) API responses.
     '''
 
-    def interpret_plants_response(self, response: Dict):
+    def interpret_plants_response(self, response: List[Dict]) -> List[Dict]:
         '''
         Interpret the plant response from the GPM API.
         '''
@@ -16,7 +16,7 @@ class GPMInterpreter:
                 'id': plant['Id'],
                 'name': plant['Name'],
             }
-            for plant in response.get('Plants', [])
+            for plant in response
         ]
         return plants
 
@@ -38,54 +38,57 @@ class GPMInterpreter:
         }
         return grouped_elements, element_types
 
-    def interpret_inverters_datasources_response(self, response: Dict):
+    def extract_active_power_from_response(self, response: Dict):
         '''
-        Interpret the inverters datasources response from the GPM API.
-        Returns relevant datasources for inverters.
+        Extract active power from the response.
         '''
-        patterns = {
-            "active_power": re.compile(r"active\s*power", re.IGNORECASE),
-            "active_energy": re.compile(r"active\s*energy", re.IGNORECASE),
-        }
-        matched_signals = {
-            "active_power": None,
-            "active_energy": None,
-        }
+        name_patterns = [
+            re.compile(r"active\s*power", re.IGNORECASE),
+            re.compile(r"\bPower\b", re.IGNORECASE),
+        ]
+        unit_patterns = [
+            re.compile(r"\bkw\b", re.IGNORECASE),
+        ]
+        return self.extract_datasource_from_response_by_name_unit(response, name_patterns, unit_patterns)
+
+    def extract_active_energy_from_response(self, response: Dict):
+        '''
+        Extract active energy from the response.
+        '''
+        name_patterns = [
+            re.compile(r"active\s*energy", re.IGNORECASE),
+            re.compile(r"^energy$", re.IGNORECASE)
+        ]
+        unit_patterns = [
+            re.compile(r"\bkwh\b", re.IGNORECASE),
+        ]
+        return self.extract_datasource_from_response_by_name_unit(response, name_patterns, unit_patterns)
+
+    def extract_datasource_from_response_by_name_unit(self, response: Dict, name_patterns: List[re.Pattern], unit_patterns: List[re.Pattern]):
+        '''
+        Extract datasources from the response based on name and unit patterns.
+        '''
+        matched_signals = []
         for datasource in response:
             name = datasource.get("DataSourceName", "")
             units = datasource.get("Units", "")
-            if patterns["active_power"].search(name) or units.lower() == "kw":
-                matched_signals["active_power"] = {
-                    "id": datasource.get("DataSourceId"), "name": name, "units": units
-                }
-            elif patterns["active_energy"].search(name) or units.lower() == "kwh":
-                matched_signals["active_energy"] = {
-                    "id": datasource.get("DataSourceId"), "name": name, "units": units
-                }
+            if any(pattern.fullmatch(name) for pattern in name_patterns) and any(pattern.fullmatch(units) for pattern in unit_patterns):
+                matched_signals.append({
+                    "id": datasource.get("DataSourceId"),
+                    "name": name,
+                    "units": units
+                })
         return matched_signals
-    
-    def interpret_strings_datasources_response(self, response: Dict):
+
+    def join_time_series_responses(self, responses: List[List[Dict]]) -> List[Dict]:
         '''
-        Interpret the strings datasources response from the GPM API.
-        Returns relevant datasources for strings.
+        Join multiple timestamp indexed responses into a single response.
         '''
-        patterns = {
-            "energy": re.compile(r"energy", re.IGNORECASE),
-            "power": re.compile(r"power", re.IGNORECASE),
-        }
-        matched_signals = {
-            "energy": None,
-            "power": None,
-        }
-        for datasource in response:
-            name = datasource.get("DataSourceName", "")
-            units = datasource.get("Units", "")
-            if patterns["energy"].search(name) or units.lower() == "kwh":
-                matched_signals["energy"] = {
-                    "id": datasource.get("DataSourceId"), "name": name, "units": units
-                }
-            elif patterns["power"].search(name) or units.lower() == "kw":
-                matched_signals["power"] = {
-                    "id": datasource.get("DataSourceId"), "name": name, "units": units
-                }
-        return matched_signals
+        joined_response = {}
+        for response in responses:
+            for entry in response:
+                timestamp = entry['timestamp']
+                if timestamp not in joined_response:
+                    joined_response[timestamp] = {}
+                joined_response[timestamp].update(entry)
+        return sorted(joined_response.values(), key=lambda x: x['timestamp'])
