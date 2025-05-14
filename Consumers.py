@@ -19,10 +19,12 @@ class GPMConsumer:
         'granularity': int,
         'aggregationType': int,
         'signals': (list, str),
+        'table': str,
     }
 
     def __init__(self, prefix='gpm'):
         self.config_manager = ConfigManager(
+            prefix = prefix,
             config_path=f'{prefix}_config.json',
             env_path=f'{prefix}.env',
             config_keys=GPMConsumer.configKeys

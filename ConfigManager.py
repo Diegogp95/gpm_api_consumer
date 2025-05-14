@@ -7,7 +7,8 @@ class ConfigManager:
     It uses a JSON file to store the configuration data.
     """
 
-    def __init__(self, config_keys, config_path='config.json', env_path='.env'):
+    def __init__(self, prefix, config_keys, config_path='config.json', env_path='.env'):
+        self.prefix = prefix
         self.path = config_path
         self._config = self._load_config()
         self.env_path = env_path
@@ -113,3 +114,29 @@ class ConfigManager:
             max_key_length = max(len(key) for key in self._config.keys())
             config_str = "\n".join([f"\t{key.ljust(max_key_length)}:\t{value}" for key, value in self._config.items()])
             return f"\nConfiguration:\n{config_str}\n"
+
+    def save_json_file(self, directory, filename, data, dir_name=None):
+        """
+        Saves or creeates a file with the current configuration.
+        """
+        directory = directory.split('/')[:-1] + [f"{self.prefix}{'_' + dir_name if dir_name else ''}"]
+        directory = os.path.join(*directory)
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        path = os.path.join(directory, filename)
+        with open(path, 'w') as file:
+            json.dump(data, file, indent=4)
+        print(f"Saved data to {path}")
+
+    def load_json_file(self, directory, filename, dir_name=None):
+        """
+        Loads a file with the current configuration.
+        """
+        directory = directory.split('/')[:-1] + [f"{self.prefix}{'_' + dir_name if dir_name else ''}"]
+        directory = os.path.join(*directory)
+        path = os.path.join(directory, filename)
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"File {path} not found.")
+        with open(path, 'r') as file:
+            data = json.load(file)
+        return data

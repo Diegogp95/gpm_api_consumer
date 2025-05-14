@@ -91,6 +91,22 @@ def main():
     datalist_parser.add_argument('aggregationType', type=int, nargs='?',
                             help='Aggregation type (e.g., 0 for sum w/o zeros, 1 for average)')
 
+    # Operation: datasources_map
+    datasources_map_parser = subparsers.add_parser('datasources_map',
+                                help='Constructs a map of datasources for the gen or weather table')
+    datasources_map_parser.add_argument('plant_id', type=int, nargs='?',
+                            help='ID of the plant')
+    datasources_map_parser.add_argument('table', type=str, nargs='?',
+                            help='Table name (e.g., "gen", "weather")')
+
+    # Operation: full_data_pipeline
+    full_data_pipeline_parser = subparsers.add_parser('full_data_pipeline',
+                                help='Get data from the GPM API using a full data pipeline')
+    full_data_pipeline_parser.add_argument('startDate', type=str, nargs='?',
+                            help='Start date in YYYY-MM-DDTHH:MM:SS format')
+    full_data_pipeline_parser.add_argument('endDate', type=str, nargs='?',
+                            help='End date in YYYY-MM-DDTHH:MM:SS format')
+
     args = parser.parse_args()
 
     # Logging setup
@@ -126,117 +142,56 @@ def main():
         print("Plants:")
         for plant in plants:
             print(f"\t{plant['name']} (ID: {plant['id']})")
-    elif args.operation in ['plant_detail', 'elements']:
-        if args.file:
-            plant_id = operator.consumer.config_manager.get('plant_id')
-            if plant_id is None:
-                print("Error: Plant ID not found in config file.")
-                return
-            else:
-                logging.info(f"Loaded plant ID {plant_id} from config file.")
-        else:
-            plant_id = args.plant_id
-        if plant_id is None:
-            print("Error: Plant ID is required. Provide it as an argument or use -f to load from config file.")
-            return
-        if args.operation == 'plant_detail':
-            result = operator.handle_plant_details(plant_id=plant_id)
-            print(f"Details of plant {plant_id}:")
-            print(json.dumps(result, indent=4))
-        elif args.operation == 'elements':
-            result = operator.handle_elements(plant_id=plant_id)
-            print(f"Types of elements in plant {plant_id}:")
-            print(json.dumps(result[1], indent=4))
-            print(f"Elements in plant {plant_id}:")
-            for _type, elements in result[0].items():
-                print(f"\t{_type}:")
-                for element in elements:
-                    print(f"\t\t{element['name']} (ID: {element['id']})")
-    elif args.operation == 'element_detail':
-        if args.file:
-            plant_id = operator.consumer.config_manager.get('plant_id')
-            element_id = operator.consumer.config_manager.get('element_id')
-            if plant_id is None or element_id is None:
-                print("Error: Plant ID or Element ID not found in config file.")
-                return
-            else:
-                logging.info(f"Loaded plant ID {plant_id} and element ID {element_id} from config file.")
-        else:
-            plant_id = args.plant_id
-            element_id = args.element_id
-        if plant_id is None or element_id is None:
-            print("Error: Plant ID and Element ID are required. Provide them as arguments or use -f to load from config file.")
-            return
-        result = operator.handle_element_details(plant_id=plant_id, element_id=element_id)
-        print(f"Details of element {element_id} in plant {plant_id}:")
+
+    elif args.operation == 'plant_detail':
+        kwargs = operator.args_handler(args, ['plant_id'])
+        result = operator.handle_plant_details(**kwargs)
+        print(f"Details of plant {kwargs['plant_id']}:")
         print(json.dumps(result, indent=4))
-    elif args.operation in ['datasources', 'plant_datasources']:
-        if args.file:
-            plant_id = operator.consumer.config_manager.get('plant_id')
-            signals = operator.consumer.config_manager.get('signals')
-            if args.operation == 'datasources':
-                element_id = operator.consumer.config_manager.get('element_id')
-            else:
-                element_id = None
-            if plant_id is None or signals is None:
-                print("Error: Plant ID or signals type not found in config file.")
-                return
-            if element_id is None and args.operation == 'datasources':
-                print("Error: Element ID not found in config file.")
-                return
-            logging.info(f"Loaded plant ID {plant_id}, signals {signals} {'and element ID {element_id}' if args.operation == 'datasources' else ''} from config file.")
-        else:
-            plant_id = args.plant_id
-            signals = args.signals.split(',')
-            if args.operation == 'datasources':
-                element_id = args.element_id
-            else:
-                element_id = None
-        if plant_id is None or signals is None:
-            print("Error: Plant ID and signals type are required. Provide them as arguments or use -f to load from config file.")
-            return
-        if args.operation == 'datasources':
-            if element_id is None:
-                print("Error: Element ID is required for datasources operation.")
-                return
-            logging.info(f"Retrieving datasources of signals {signals} in plant {plant_id} and element {element_id}.")
-            result = operator.handle_datasources(plant_id=plant_id, signals=signals, element_id=element_id)
-            print(f"Datasources of signals {signals} in plant {plant_id} and element {element_id}:")
-            print(json.dumps(result, indent=4))
-        else:
-            logging.info(f"Retrieving datasources of signals {signals} in plant {plant_id}.")
-            result = operator.handle_datasources(plant_id=plant_id, signals=signals)
-            print(f"Datasources of signals {signals} in plant {plant_id}:")
-            print(json.dumps(result, indent=4))
+
+    elif args.operation == 'elements':
+        kwargs = operator.args_handler(args, ['plant_id'])
+        result, element_types = operator.handle_elements(**kwargs)
+        print(f"Elements in plant {kwargs['plant_id']}:")
+        for element_type in element_types:
+            print(f"\t{element_type}")
+        print(json.dumps(result, indent=4))
+
+    elif args.operation == 'element_detail':
+        kwargs = operator.args_handler(args, ['plant_id', 'element_id'])
+        result = operator.handle_element_details(**kwargs)
+        print(f"Details of element {kwargs['element_id']} in plant {kwargs['plant_id']}:")
+        print(json.dumps(result, indent=4))
+
+    elif args.operation == 'datasources':
+        kwargs = operator.args_handler(args, ['plant_id', 'element_id', 'signals'])
+        result = operator.handle_datasources(**kwargs)
+        print(f"Datasources of signals {kwargs['signals']} in plant {kwargs['plant_id']} and element {kwargs['element_id']}:")
+        print(json.dumps(result, indent=4))
+
+    elif args.operation == 'plant_datasources':
+        kwargs = operator.args_handler(args, ['plant_id', 'signals'])
+        result = operator.handle_datasources(**kwargs)
+        print(f"Datasources of signals {kwargs['signals']} in plant {kwargs['plant_id']}:")
+        print(json.dumps(result, indent=4))
+
+    elif args.operation == 'datasources_map':
+        kwargs = operator.args_handler(args, ['plant_id', 'table'])
+        result = operator.handle_datasources_map(**kwargs)
+        print(f"Datasources map for table {kwargs['table']} in plant {kwargs['plant_id']}:")
+        print(json.dumps(result, indent=4))
+
     elif args.operation == 'datalistv2':
-        if args.file:
-            plant_id = operator.consumer.config_manager.get('plant_id')
-            dataSourceIds = operator.consumer.config_manager.get('dataSourceIds')
-            startDate = operator.consumer.config_manager.get('startDate')
-            endDate = operator.consumer.config_manager.get('endDate')
-            grouping = operator.consumer.config_manager.get('grouping')
-            granularity = operator.consumer.config_manager.get('granularity')
-            aggregationType = operator.consumer.config_manager.get('aggregationType')
-            if plant_id is None or dataSourceIds is None or startDate is None or endDate is None or grouping is None or granularity is None or aggregationType is None:
-                print("Error: Plant ID, dataSourceIds, startDate, endDate, grouping, granularity and aggregationType not found in config file.")
-                return
-            logging.info(f"Loaded plant ID {plant_id}, dataSourceIds {dataSourceIds}, startDate {startDate}, endDate {endDate}, grouping {grouping}, granularity {granularity} and aggregationType {aggregationType} from config file.")
-        else:
-            plant_id = args.plant_id
-            dataSourceIds = [int(x) for x in args.dataSourceIds.split(',')]
-            startDate = args.startDate
-            endDate = args.endDate
-            grouping = args.grouping
-            granularity = args.granularity
-            aggregationType = args.aggregationType
-        if plant_id is None or dataSourceIds is None or startDate is None or endDate is None or grouping is None or granularity is None or aggregationType is None:
-            print("Error: Plant ID, dataSourceIds, startDate, endDate, grouping, granularity and aggregationType are required. Provide them as arguments or use -f to load from config file.")
-            return
-        logging.info(f"Retrieving datalistv2 for plant {plant_id} with dataSourceIds {dataSourceIds}, startDate {startDate}, endDate {endDate}, grouping {grouping}, granularity {granularity} and aggregationType {aggregationType}.")
-        result = operator.handle_datalistv2(dataSourceIds=dataSourceIds, startDate=startDate,
-                                            endDate=endDate, grouping=grouping,
-                                            granularity=granularity, aggregationType=aggregationType)
-        print(f"Datalistv2 for plant {plant_id} with dataSourceIds {dataSourceIds}, startDate {startDate}, endDate {endDate}, grouping {grouping}, granularity {granularity} and aggregationType {aggregationType}:")
+        kwargs = operator.args_handler(args, ['dataSourceIds', 'startDate',
+                        'endDate', 'grouping', 'granularity', 'aggregationType'])
+        result = operator.handle_datalistv2(**kwargs)
+        print(f"Datalistv2 with dataSourceIds {kwargs['dataSourceIds']}, startDate {kwargs['startDate']}, endDate {kwargs['endDate']}, grouping {kwargs['grouping']}, granularity {kwargs['granularity']} and aggregationType {kwargs['aggregationType']}:")
+        print(json.dumps(result, indent=4))
+
+    elif args.operation == 'full_data_pipeline':
+        kwargs = operator.args_handler(args, ['startDate', 'endDate'])
+        result = operator.handle_full_data_pipeline(**kwargs)
+        print(f"Full data pipeline with startDate {kwargs['startDate']} and endDate {kwargs['endDate']}:")
         print(json.dumps(result, indent=4))
 
 if __name__ == "__main__":

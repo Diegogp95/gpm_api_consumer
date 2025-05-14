@@ -45,6 +45,7 @@ class GPMInterpreter:
         name_patterns = [
             re.compile(r"active\s*power", re.IGNORECASE),
             re.compile(r"\bPower\b", re.IGNORECASE),
+            re.compile(r"^Active\s+Power\s+Total\s+\(kw\)", re.IGNORECASE),
         ]
         unit_patterns = [
             re.compile(r"\bkw\b", re.IGNORECASE),
@@ -57,7 +58,8 @@ class GPMInterpreter:
         '''
         name_patterns = [
             re.compile(r"active\s*energy", re.IGNORECASE),
-            re.compile(r"^energy$", re.IGNORECASE)
+            re.compile(r"^energy$", re.IGNORECASE),
+            re.compile(r"\bexported\s*active\s*energy\b", re.IGNORECASE),
         ]
         unit_patterns = [
             re.compile(r"\bkwh\b", re.IGNORECASE),
@@ -92,3 +94,84 @@ class GPMInterpreter:
                     joined_response[timestamp] = {}
                 joined_response[timestamp].update(entry)
         return sorted(joined_response.values(), key=lambda x: x['timestamp'])
+
+    def traduce_datalist_response(self, response: List[Dict], elements_translations: List[Dict]) -> List[Dict]:
+        '''
+        Reads a spreaded json response and returns a list of dictionaries grouped by same timestamps.
+        '''
+        try:
+            datasource_to_name = {
+                translation["datasource_id"]: translation["name"]
+                for translation in elements_translations
+            }
+            grouped_data = {}
+
+            for entry in response:
+                timestamp = entry["Date"]
+                datasource_id = entry["DataSourceId"]
+                value = entry["Value"]
+                name = datasource_to_name.get(datasource_id, f"Unknown_{datasource_id}")
+
+                if timestamp not in grouped_data:
+                    grouped_data[timestamp] = {"timestamp": timestamp}
+
+                grouped_data[timestamp][name] = value
+
+            result = sorted(grouped_data.values(), key=lambda x: x["timestamp"])
+            return result
+
+        except Exception as e:
+            logging.error("Failed to traduce datalist response")
+            logging.debug(f"Error: {e}")
+            raise e
+
+    def format_inverter_name(self, inverter_name: str, inverters_per_ct: List[int], reset_inv: bool) -> str:
+        '''
+        Format the inverter name to a standardized format like: ct01_inv01.
+        '''
+        patterns = [
+            re.compile(r"Inverter\s*CT(\d+)\.(\d+)", re.IGNORECASE),
+            re.compile(r"Inverter\s+(\d+)\.(\d+)", re.IGNORECASE),
+            re.compile(r"INV-(\d+)\.(\d+)", re.IGNORECASE),
+        ]
+
+        for pattern in patterns:
+            match = pattern.match(inverter_name)
+            if match:
+                ct_index = int(match.group(1))
+                inv_number = int(match.group(2))
+                if reset_inv and ct_index > 1:
+                    inv_number = inv_number - sum(inverters_per_ct[:ct_index - 1])
+                if inv_number < 1 or inv_number > inverters_per_ct[ct_index - 1]:
+                    raise ValueError(f"Invalid inverter number {inv_number} for CT {ct_index}. While processing inverter name {inverter_name}.")
+                logging.debug(f"Formatted {inverter_name} -> ct{ct_index:02d}_inv{inv_number:02d}")
+                return f"ct{ct_index:02d}_inv{inv_number:02d}"
+        logging.warning(f"No pattern matched for inverter name: {inverter_name}")
+        return inverter_name
+
+    def format_string_name(self, name: str, inverters_per_ct: List[int], reset_inv: bool) -> str:
+        '''
+        Format the string name to a standardized format like: ct01_01_str01.
+        '''
+        patterns = [
+            re.compile(r"String\s*CT(\d+)\.(\d+)\.(\d+)", re.IGNORECASE),
+            re.compile(r"String\s*CT(\d+)\.(\d+)\s+(\d+)", re.IGNORECASE),
+            re.compile(r"String\s*(\d+)\.(\d+)\.(\d+)", re.IGNORECASE),
+            re.compile(r"String\s*-?\s*(\d+)\.(\d+)\s+(\d+)", re.IGNORECASE),
+        ]
+
+        for pattern in patterns:
+            match = pattern.match(name)
+            if match:
+                ct_index = int(match.group(1))
+                inv_number = int(match.group(2))
+                string_number = int(match.group(3))
+                if reset_inv and ct_index > 1:
+                    inv_number = inv_number - sum(inverters_per_ct[:ct_index - 1])
+                if inv_number < 1 or inv_number > inverters_per_ct[ct_index - 1]:
+                    raise ValueError(f"Invalid inverter number {inv_number} for CT {ct_index}. While processing string name {name}.")
+                logging.debug(f"Formatted {name} -> ct{ct_index:02d}_{inv_number:02d}_str{string_number:02d}")
+                return f"ct{ct_index:02d}_{inv_number:02d}_str{string_number:02d}"
+
+        logging.warning(f"No pattern matched for string name: {name}")
+        return name
