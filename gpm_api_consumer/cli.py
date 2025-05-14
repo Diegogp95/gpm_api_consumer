@@ -1,4 +1,4 @@
-from Operators import GPMOperator
+from .core.Operators import GPMOperator
 import logging
 import argparse
 import json
@@ -99,12 +99,15 @@ def main():
     datasources_map_parser.add_argument('table', type=str, nargs='?',
                             help='Table name (e.g., "gen", "weather")')
 
-    # Operation: full_data_pipeline
-    full_data_pipeline_parser = subparsers.add_parser('full_data_pipeline',
+    # Operation: plant_data_pipeline
+    plant_data_pipeline_parser = subparsers.add_parser('plant_data_pipeline',
                                 help='Get data from the GPM API using a full data pipeline')
-    full_data_pipeline_parser.add_argument('startDate', type=str, nargs='?',
+    group = plant_data_pipeline_parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--plant_id', type=int, help='ID of the plant')
+    group.add_argument('--plant_name', type=str, help='Name of the plant')
+    plant_data_pipeline_parser.add_argument('startDate', type=str, nargs='?',
                             help='Start date in YYYY-MM-DDTHH:MM:SS format')
-    full_data_pipeline_parser.add_argument('endDate', type=str, nargs='?',
+    plant_data_pipeline_parser.add_argument('endDate', type=str, nargs='?',
                             help='End date in YYYY-MM-DDTHH:MM:SS format')
 
     args = parser.parse_args()
@@ -140,8 +143,7 @@ def main():
     elif args.operation == 'plants':
         plants = operator.handle_plants()
         print("Plants:")
-        for plant in plants:
-            print(f"\t{plant['name']} (ID: {plant['id']})")
+        print(json.dumps(plants, indent=4))
 
     elif args.operation == 'plant_detail':
         kwargs = operator.args_handler(args, ['plant_id'])
@@ -188,9 +190,15 @@ def main():
         print(f"Datalistv2 with dataSourceIds {kwargs['dataSourceIds']}, startDate {kwargs['startDate']}, endDate {kwargs['endDate']}, grouping {kwargs['grouping']}, granularity {kwargs['granularity']} and aggregationType {kwargs['aggregationType']}:")
         print(json.dumps(result, indent=4))
 
-    elif args.operation == 'full_data_pipeline':
-        kwargs = operator.args_handler(args, ['startDate', 'endDate'])
-        result = operator.handle_full_data_pipeline(**kwargs)
+    elif args.operation == 'plant_data_pipeline':
+        arg_keys = []
+        if getattr(args, 'plant_id', None) is not None:
+            arg_keys.append('plant_id')
+        elif getattr(args, 'plant_name', None) is not None:
+            arg_keys.append('plant_name')
+        arg_keys += ['startDate', 'endDate']
+        kwargs = operator.args_handler(args, arg_keys)
+        result = operator.handle_plant_id_name_data_pipeline(**kwargs)
         print(f"Full data pipeline with startDate {kwargs['startDate']} and endDate {kwargs['endDate']}:")
         print(json.dumps(result, indent=4))
 

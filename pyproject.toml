@@ -1,0 +1,23 @@
+[project]
+name = "gpm_api_consumer"
+version = "0.1.0"
+description = "Consumidor de la API GPM para uso interno"
+authors = [
+    { name = "Diego Gallegos", email = "dgallegos@revergy.es" }
+]
+readme = "README.md"
+requires-python = ">=3.9.20"
+dependencies = [
+    "requests",
+    "python-dotenv",
+]
+
+[project.scripts]
+gpm-cli = "gpm_api_consumer.cli:main"
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["gpm_api_consumer"]

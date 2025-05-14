@@ -1,5 +1,5 @@
-from Client import APIClient
-from ConfigManager import ConfigManager
+from .Client import APIClient
+from .ConfigManager import ConfigManager
 
 
 class GPMConsumer:
@@ -11,6 +11,7 @@ class GPMConsumer:
         # query parameters for datalistv2 endpoint
         'api_token': str,
         'plant_id': int,
+        'plant_name': str,
         'element_id': int,
         'startDate': str,
         'endDate': str,

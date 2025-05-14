@@ -1,12 +1,13 @@
-from Consumers import GPMConsumer
-from Interpreters import GPMInterpreter
+from .Consumers import GPMConsumer
+from .Interpreters import GPMInterpreter
+from .FileManager import FileManager
 from requests.exceptions import HTTPError
 import logging
 from functools import wraps
 from typing import List, Dict, Union
 import re
-import exceptions as ex
-from utils import set_logger_level, chunked_iterable
+from . import exceptions as ex
+from ..utils.utils import set_logger_level, chunked_iterable
 
 class GPMOperator:
     '''
@@ -15,6 +16,7 @@ class GPMOperator:
     def __init__(self):
         self.consumer = GPMConsumer(prefix='biwo')
         self.interpreter = GPMInterpreter()
+        self.file_manager = FileManager(prefix='biwo')
         
     @staticmethod
     def handle_authentication(func):
@@ -148,20 +150,21 @@ class GPMOperator:
             logging.debug(f"Error: {e}")
             raise e
 
-    def handle_datasources_map(self, plant_id: int, table: str):
+    def handle_datasources_map(self, plant:dict, table: str):
         """
         Handle the 'datasources_map' operation.
         This method constructs a map of datasources for a given plant ID and table (gen or weather).
         The map should not vary often, and the pipeline is expensive, so it is not meant to be run all the time.
         """
         if table == 'gen':
-            map = self.gen_datasources_map_pipeline(plant_id=plant_id)
+            map = self.gen_datasources_map_pipeline(plant_id=plant['id'])
         elif table == 'weather':
-            map = self.weather_datasources_map_pipeline(plant_id=plant_id)
+            map = self.weather_datasources_map_pipeline(plant_id=plant['id'])
         else:
             raise ValueError("Invalid table type. Expected 'gen' or 'weather'.")
-        self.consumer.config_manager.save_json_file('./', f'datasources_map_{plant_id}_{table}.json', map, 'datasources')
-        logging.info(f"Datasources map saved successfully for plant ID {plant_id} and table {table}")
+        path = self.file_manager.save_sources_map(f"{plant['safe_name']}_{table}_map.json", map)
+        logging.info(f"Datasources map saved successfully for plant {plant['name']} in {path}")
+        return path
 
     def gen_datasources_map_pipeline(self, plant_id: int):
         """
@@ -398,8 +401,30 @@ class GPMOperator:
                     })
         logging.info(f"Weather datasources map retrieved successfully for plant ID {plant_id}")
         return weather_datasources
+    
+    def handle_plant_id_name_data_pipeline(self, startDate: str, endDate: str, plant_id: int=None,
+                                            plant_name: str=None):
+        """
+        Handles the data pipeline for a specific plant ID.
+        This method is used to retrieve and process data for a given plant ID or name.
+        We use safe_name to avoid problems with special characters in the name.
+        """
+        try:
+            plant = self.handle_plants()
+            plant = (next((p for p in plant if p['id'] == plant_id), None) if plant_id else
+                    next((p for p in plant if p['safe_name'].lower() == plant_name.lower()), None))
+            if plant is None:
+                raise ValueError(f"Plant with ID {plant_id} not found")
+            logging.info(f"Starting data pipeline for plant ID {plant_id}")
+            gen_path, weather_path = self.handle_plant_data_pipeline(plant, startDate, endDate)
+            logging.info(f"Data pipeline completed for plant ID {plant_id}")
+            return gen_path, weather_path
+        except HTTPError as e:
+            logging.error("Failed to retrieve plant data")
+            logging.debug(f"Error: {e}")
+            raise e
 
-    def handle_full_data_pipeline(self, startDate: str, endDate: str):
+    def handle_plant_data_pipeline(self, plant, startDate: str, endDate: str):
         datalist_params = {
             ## datasources and agregationType depends on the signal type, we add it for each request
             'startDate': startDate,
@@ -407,84 +432,77 @@ class GPMOperator:
             'grouping': 'minute',
             'granularity': 15,
         }
-        plants = self.handle_plants()
-        for plant in plants:
-            logging.info(f"Starting data pipeline for plant {plant['name']}")
-            try:
-                gen_datasources_map = self.consumer.config_manager.load_json_file('./',
-                                                                f'datasources_map_{plant["id"]}_gen.json', 'datasources')
-                logging.info(f"Gen datasources map loaded for plant {plant['name']}")
-            except FileNotFoundError:
-                logging.info(f"Gen datasources map not found for plant {plant['name']}, creating it...")
-                gen_datasources_map = self.gen_datasources_map_pipeline(plant_id=plant['id'])
-                self.consumer.config_manager.save_json_file('./', f'datasources_map_{plant["id"]}_gen.json',
-                                                                gen_datasources_map, 'datasources')
-                logging.info(f"Gen datasources map created for plant {plant['name']}")
-            try:
-                weather_datasources_map = self.consumer.config_manager.load_json_file('./',
-                                                                f'datasources_map_{plant["id"]}_weather.json', 'datasources')
-                logging.info(f"Weather datasources map loaded for plant {plant['name']}")
-            except FileNotFoundError:
-                logging.info(f"Weather datasources map not found for plant {plant['name']}, creating it...")
-                weather_datasources_map = self.weather_datasources_map_pipeline(plant_id=plant['id'])
-                self.consumer.config_manager.save_json_file('./', f'datasources_map_{plant["id"]}_weather.json', weather_datasources_map, 'datasources')
-                logging.info(f"Weather datasources map created for plant {plant['name']}")
-
-            power_sources = [source for source in gen_datasources_map if re.search(r"power", source['datasource_name'], re.IGNORECASE)]
-            energy_sources = [source for source in gen_datasources_map if re.search(r"energy", source['datasource_name'], re.IGNORECASE)]
-            power_params = {
-                **datalist_params,
-                'aggregationType': 1,
-            }
-            energy_params = {
-                **datalist_params,
-                'aggregationType': 0,
-            }
-            power_datasource_ids = [source['datasource_id'] for source in power_sources]
-            energy_datasource_ids = [source['datasource_id'] for source in energy_sources]
-            power_raw_responses = [
-                self.handle_datalistv2(
-                    dataSourceIds=ids_chunk,
-                    **power_params
-                ) for ids_chunk in chunked_iterable(power_datasource_ids, 10)
-            ]
-            energy_raw_responses = [
-                self.handle_datalistv2(
-                    dataSourceIds=ids_chunk,
-                    **energy_params
-                ) for ids_chunk in chunked_iterable(energy_datasource_ids, 10)
-            ]
-            logging.info(f"Data retrieved for plant {plant['name']}, formatting it...")
-            traduced_responses = [
-                self.interpreter.traduce_datalist_response(response, gen_datasources_map)
-                for response in power_raw_responses + energy_raw_responses
-            ]
-            joined_gen_response = self.interpreter.join_time_series_responses(traduced_responses)
-            self.consumer.config_manager.save_json_file('./',
-                    f'plant_{plant["id"]}_gen_{startDate.replace(":", "")}_{endDate.replace(":", "")}.json',
-                                    joined_gen_response, 'data')
-            weather_params = {
-                **datalist_params,
-                'aggregationType': 1,
-            }
-            weather_datasource_ids = [source['datasource_id'] for source in weather_datasources_map]
-            weather_raw_responses = [
-                self.handle_datalistv2(
-                    dataSourceIds=ids_chunk,
-                    **weather_params
-                ) for ids_chunk in chunked_iterable(weather_datasource_ids, 10)
-            ]
-            weather_traduced_responses = [
-                self.interpreter.traduce_datalist_response(response, weather_datasources_map)
-                for response in weather_raw_responses
-            ]
-            joined_weather_response = self.interpreter.join_time_series_responses(weather_traduced_responses)
-            self.consumer.config_manager.save_json_file('./',
-                    f'plant_{plant["id"]}_weather_{startDate.replace(":", "")}_{endDate.replace(":", "")}.json',
-                                    joined_weather_response, 'data')
-            logging.info(f"Data pipeline completed for plant {plant['name']}")
-        logging.info("Data pipeline completed for all plants")
-        return
+        logging.info(f"Starting data pipeline for plant {plant['name']}")
+        try:
+            gen_datasources_map = self.file_manager.load_sources_map(f"{plant['safe_name']}_gen_map.json")
+            logging.info(f"Gen datasources map loaded for plant {plant['name']}")
+        except FileNotFoundError:
+            logging.info(f"Gen datasources map not found for plant {plant['name']}, creating it...")
+            gen_datasources_map = self.gen_datasources_map_pipeline(plant_id=plant['id'])
+            gen_map_path = self.file_manager.save_sources_map(f"{plant['safe_name']}_gen_map.json", gen_datasources_map)
+            logging.info(f"Gen datasources map created for plant {plant['name']}")
+        try:
+            weather_datasources_map = self.file_manager.load_sources_map(f"{plant['safe_name']}_weather_map.json")
+            logging.info(f"Weather datasources map loaded for plant {plant['name']}")
+        except FileNotFoundError:
+            logging.info(f"Weather datasources map not found for plant {plant['name']}, creating it...")
+            weather_datasources_map = self.weather_datasources_map_pipeline(plant_id=plant['id'])
+            weather_map_path = self.file_manager.save_sources_map(f"{plant['safe_name']}_weather_map.json", weather_datasources_map)
+            logging.info(f"Weather datasources map created for plant {plant['name']}")
+        power_sources = [source for source in gen_datasources_map if re.search(r"power", source['datasource_name'], re.IGNORECASE)]
+        energy_sources = [source for source in gen_datasources_map if re.search(r"energy", source['datasource_name'], re.IGNORECASE)]
+        power_params = {
+            **datalist_params,
+            'aggregationType': 1,
+        }
+        energy_params = {
+            **datalist_params,
+            'aggregationType': 0,
+        }
+        power_datasource_ids = [source['datasource_id'] for source in power_sources]
+        energy_datasource_ids = [source['datasource_id'] for source in energy_sources]
+        power_raw_responses = [
+            self.handle_datalistv2(
+                dataSourceIds=ids_chunk,
+                **power_params
+            ) for ids_chunk in chunked_iterable(power_datasource_ids, 10)
+        ]
+        energy_raw_responses = [
+            self.handle_datalistv2(
+                dataSourceIds=ids_chunk,
+                **energy_params
+            ) for ids_chunk in chunked_iterable(energy_datasource_ids, 10)
+        ]
+        logging.info(f"Data retrieved for plant {plant['name']}, formatting it...")
+        traduced_responses = [
+            self.interpreter.traduce_datalist_response(response, gen_datasources_map)
+            for response in power_raw_responses + energy_raw_responses
+        ]
+        joined_gen_response = self.interpreter.join_time_series_responses(traduced_responses)
+        gen_path = self.file_manager.save_data(
+                f'{plant["safe_name"]}_gen_{startDate.replace(":", "")}_{endDate.replace(":", "")}.json',
+                joined_gen_response)
+        weather_params = {
+            **datalist_params,
+            'aggregationType': 1,
+        }
+        weather_datasource_ids = [source['datasource_id'] for source in weather_datasources_map]
+        weather_raw_responses = [
+            self.handle_datalistv2(
+                dataSourceIds=ids_chunk,
+                **weather_params
+            ) for ids_chunk in chunked_iterable(weather_datasource_ids, 10)
+        ]
+        weather_traduced_responses = [
+            self.interpreter.traduce_datalist_response(response, weather_datasources_map)
+            for response in weather_raw_responses
+        ]
+        joined_weather_response = self.interpreter.join_time_series_responses(weather_traduced_responses)
+        weather_path = self.file_manager.save_data(
+                f'{plant["safe_name"]}_weather_{startDate.replace(":", "")}_{endDate.replace(":", "")}.json',
+                joined_weather_response)
+        logging.info(f"Data pipeline completed for plant {plant['name']}")
+        return gen_path, weather_path
 
     def args_handler(self, args, keys):
         """
@@ -501,6 +519,8 @@ class GPMOperator:
             for key in keys:
                 if key in args:
                     expected_type = self.consumer.config_manager.config_keys[key]
+                    if getattr(args, key) is None:
+                        raise ValueError(f"Argument '{key}' cannot be None")
                     if getattr(args, key) == 'None':
                         kwargs[key] = None
                     elif isinstance(expected_type, tuple):
