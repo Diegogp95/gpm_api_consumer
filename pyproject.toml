@@ -19,5 +19,6 @@ gpm-cli = "gpm_api_consumer.cli:main"
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-packages = ["gpm_api_consumer"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["gpm_api_consumer*"]

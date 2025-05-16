@@ -1,7 +1,7 @@
 from typing import List, Dict, Union
 import re
 import logging
-import unicodedata
+from gpm_api_consumer.utils import normalize_name
 
 class GPMInterpreter:
     '''
@@ -12,14 +12,6 @@ class GPMInterpreter:
         '''
         Interpret the plant response from the GPM API.
         '''
-        def normalize_name(name: str) -> str:
-            # Elimina tildes y caracteres raros, deja solo letras, números y guion bajo
-            nfkd = unicodedata.normalize('NFKD', name)
-            ascii_name = "".join([c for c in nfkd if not unicodedata.combining(c)])
-            ascii_name = ascii_name.replace(" ", "_").replace("-", "_")
-            safe = "".join([c for c in ascii_name if c.isalnum() or c == "_"])
-            return safe
-
         plants = [
             {
                 'id': plant['Id'],

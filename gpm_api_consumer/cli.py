@@ -1,4 +1,4 @@
-from .core.Operators import GPMOperator
+from gpm_api_consumer.core.Operators import GPMOperator
 import logging
 import argparse
 import json

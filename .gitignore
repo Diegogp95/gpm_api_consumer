@@ -3,6 +3,7 @@ config.json
 *config.json
 *_datasources/
 *_data/
+*_maps/
 
 __pycache__/
 *.pyc

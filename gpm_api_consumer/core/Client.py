@@ -26,3 +26,6 @@ class APIClient:
         except json.JSONDecodeError:
             # May be not content
             return None
+
+    def __str__(self):
+        return f"APIClient with base URL: {self.base_url}"

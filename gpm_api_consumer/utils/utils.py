@@ -1,6 +1,7 @@
 import logging
 from functools import wraps
 from itertools import islice
+import unicodedata
 
 def set_logger_level(temp_level):
     """
@@ -26,3 +27,12 @@ def chunked_iterable(iterable, size):
     it = iter(iterable)
     while chunk := list(islice(it, size)):
         yield chunk
+
+def normalize_name(name: str) -> str:
+    # Normalize the name to remove accents and special characters
+    # and replace spaces and hyphens with underscores.
+    nfkd = unicodedata.normalize('NFKD', name)
+    ascii_name = "".join([c for c in nfkd if not unicodedata.combining(c)])
+    ascii_name = ascii_name.replace(" ", "_").replace("-", "_")
+    safe = "".join([c for c in ascii_name if c.isalnum() or c == "_"])
+    return safe

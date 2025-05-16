@@ -1,23 +1,23 @@
-from .Consumers import GPMConsumer
-from .Interpreters import GPMInterpreter
-from .FileManager import FileManager
+from gpm_api_consumer.core.Consumers import GPMConsumer
+from gpm_api_consumer.core.Interpreters import GPMInterpreter
+from gpm_api_consumer.core.FileManager import FileManager
 from requests.exceptions import HTTPError
 import logging
 from functools import wraps
 from typing import List, Dict, Union
 import re
-from . import exceptions as ex
-from ..utils.utils import set_logger_level, chunked_iterable
+from gpm_api_consumer.core import exceptions as ex
+from gpm_api_consumer.utils.utils import chunked_iterable, set_logger_level
 
 class GPMOperator:
     '''
     GPM Operator for handling various operations related to the GPM API.
     '''
-    def __init__(self):
-        self.consumer = GPMConsumer(prefix='biwo')
+    def __init__(self, prefix='biwo', data_path=None, sources_map_path=None):
+        self.consumer = GPMConsumer(prefix)
         self.interpreter = GPMInterpreter()
-        self.file_manager = FileManager(prefix='biwo')
-        
+        self.file_manager = FileManager(prefix, data_path, sources_map_path)
+
     @staticmethod
     def handle_authentication(func):
         """
