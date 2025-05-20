@@ -59,6 +59,7 @@ class FileManager:
     def load_sources_map(self, filename):
         file_path = os.path.join(self.sources_map_path, filename)
         if not os.path.exists(file_path):
+            logging.error(f"File {file_path} not found.")
             raise FileNotFoundError(f"File {file_path} not found.")
         with open(file_path, 'r') as file:
             data = json.load(file)

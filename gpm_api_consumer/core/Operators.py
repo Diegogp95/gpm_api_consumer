@@ -3,11 +3,11 @@ from gpm_api_consumer.core.Interpreters import GPMInterpreter
 from gpm_api_consumer.core.FileManager import FileManager
 from requests.exceptions import HTTPError
 import logging
-from functools import wraps
 from typing import List, Dict, Union
 import re
 from gpm_api_consumer.core import exceptions as ex
 from gpm_api_consumer.utils.utils import chunked_iterable, set_logger_level
+from gpm_api_consumer.utils.decorators import handle_authentication
 
 class GPMOperator:
     '''
@@ -17,32 +17,6 @@ class GPMOperator:
         self.consumer = GPMConsumer(prefix)
         self.interpreter = GPMInterpreter()
         self.file_manager = FileManager(prefix, data_path, sources_map_path)
-
-    @staticmethod
-    def handle_authentication(func):
-        """
-        Decorator to handle authentication for operations.
-        Retries the operation if a 401 Unauthorized error occurs.
-        """
-        @wraps(func)
-        def wrapper(self, *args, **kwargs):
-            try:
-                return func(self, *args, **kwargs)
-            except HTTPError as e:
-                if e.response.status_code == 401:
-                    logging.info("Token expired. Re-authenticating...")
-                    self.consumer.login()
-                    logging.info("Re-authentication successful. Retrying operation...")
-                    return func(self, *args, **kwargs)
-                else:
-                    logging.error("Operation failed")
-                    logging.debug(f"Error: {e}")
-                    raise e
-            except Exception as e:
-                logging.error("Unexpected error occurred")
-                logging.debug(f"Error: {e}")
-                raise e
-        return wrapper
 
     @handle_authentication
     def check_auth(self):
@@ -223,7 +197,6 @@ class GPMOperator:
                 inverters_per_ct.append(0)
 
             inverters_per_ct[ct_index - 1] += 1
-        print(f"CTs: {inverters_per_ct}")
 
         # Check if the inverter index need to be reseted for every ct
         for inverter in inverter_elements:
@@ -342,7 +315,6 @@ class GPMOperator:
                         })
                         break
 
-        print(f"Weather stations: {weather_stations_matches}")
         weather_datasources = []
         logging.info(f"Retrieving weather table datasources for plant ID {plant_id}")
         for weather_station in weather_stations_matches:
@@ -402,27 +374,33 @@ class GPMOperator:
         logging.info(f"Weather datasources map retrieved successfully for plant ID {plant_id}")
         return weather_datasources
     
+    def _find_plant(self, plant_id: int = None, plant_name: str = None):
+        """
+        Searches for a plant by ID or safe_name.
+        If both are provided, it will prioritize the ID.
+        If not found, it raises a PlantNotFoundException.
+        """
+        plants = self.handle_plants()
+        if plant_id is not None:
+            plant = next((p for p in plants if p['id'] == plant_id), None)
+        elif plant_name is not None:
+            plant = next((p for p in plants if p['safe_name'].lower() == plant_name.lower()), None)
+        else:
+            plant = None
+        if plant is None:
+            raise ex.PlantNotFoundException(plant_id=plant_id, safe_name=plant_name)
+        return plant
+
     def handle_plant_id_name_data_pipeline(self, startDate: str, endDate: str, plant_id: int=None,
-                                            plant_name: str=None):
+                                           plant_name: str=None):
         """
-        Handles the data pipeline for a specific plant ID.
-        This method is used to retrieve and process data for a given plant ID or name.
-        We use safe_name to avoid problems with special characters in the name.
+        Handles the data pipeline for a specific plant ID or safe_name.
         """
-        try:
-            plant = self.handle_plants()
-            plant = (next((p for p in plant if p['id'] == plant_id), None) if plant_id else
-                    next((p for p in plant if p['safe_name'].lower() == plant_name.lower()), None))
-            if plant is None:
-                raise ValueError(f"Plant with ID {plant_id} not found")
-            logging.info(f"Starting data pipeline for plant ID {plant_id}")
-            gen_path, weather_path = self.handle_plant_data_pipeline(plant, startDate, endDate)
-            logging.info(f"Data pipeline completed for plant ID {plant_id}")
-            return gen_path, weather_path
-        except HTTPError as e:
-            logging.error("Failed to retrieve plant data")
-            logging.debug(f"Error: {e}")
-            raise e
+        plant = self._find_plant(plant_id=plant_id, plant_name=plant_name)
+        logging.info(f"Starting data pipeline for plant ID {plant['id']}")
+        gen_path, weather_path = self.handle_plant_data_pipeline(plant, startDate, endDate)
+        logging.info(f"Data pipeline completed for plant ID {plant['id']}")
+        return gen_path, weather_path
 
     def handle_plant_data_pipeline(self, plant, startDate: str, endDate: str):
         datalist_params = {

@@ -1,20 +1,33 @@
 
 
 class GPMException(Exception):
-    """Excepción base para el proyecto GPM."""
+    """Base Exception for GPM API errors."""
     pass
 
 class InvertersNotFoundException(GPMException):
-    """Excepción para cuando no se encuentra un inversor."""
+    """Exception for when no inverters are found."""
     def __init__(self, message="No inverter found in the elements"):
         super().__init__(message)
 
 class MeterNotFoundException(GPMException):
-    """Excepción para cuando no se encuentra un medidor."""
+    """Exception for when no meters are found."""
     def __init__(self, message="No meter found in the elements"):
         super().__init__(message)
 
 class StringsNotFoundException(GPMException):
-    """Excepción para cuando no se encuentran strings."""
+    """Exception for when no strings are found."""
     def __init__(self, message="No strings found in the elements"):
         super().__init__(message)
+
+class PlantNotFoundException(GPMException):
+    """Exception for when no plant is found."""
+    def __init__(self, plant_id=None, safe_name=None):
+        if plant_id is not None:
+            message = f"No plant found with id={plant_id}"
+        elif safe_name is not None:
+            message = f"No plant found with safe_name='{safe_name}'"
+        else:
+            message = "No plant found."
+        super().__init__(message)
+        self.plant_id = plant_id
+        self.safe_name = safe_name
