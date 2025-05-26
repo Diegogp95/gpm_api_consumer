@@ -11,12 +11,12 @@ class ConfigManager:
     def __init__(self, prefix, config_keys, config_path='config.json', env_path='.env'):
         self.prefix = prefix
         self.path = os.path.join(self.base_config_dir, config_path)
+        self.config_keys = config_keys
         self._config = self._load_config()
         self.env_path = os.path.join(self.base_config_dir, env_path)
         self._env_loaded = False
         self._env = {}
         self._load_env()
-        self.config_keys = config_keys
 
     def _load_env(self):
         if os.path.exists(self.env_path):
