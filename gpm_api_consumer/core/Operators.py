@@ -124,12 +124,13 @@ class GPMOperator:
             logging.debug(f"Error: {e}")
             raise e
 
-    def handle_datasources_map(self, plant:dict, table: str):
+    def handle_datasources_map(self, plant_id: int, table: str):
         """
         Handle the 'datasources_map' operation.
         This method constructs a map of datasources for a given plant ID and table (gen or weather).
         The map should not vary often, and the pipeline is expensive, so it is not meant to be run all the time.
         """
+        plant = self._find_plant(plant_id=plant_id)
         if table == 'gen':
             map = self.gen_datasources_map_pipeline(plant_id=plant['id'])
         elif table == 'weather':

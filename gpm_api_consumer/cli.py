@@ -63,7 +63,7 @@ def main():
     datasources_parser.add_argument('plant_id', type=int, nargs='?', default=None,
                             help='ID of the plant')
     datasources_parser.add_argument('element_id', type=int, nargs='?', default=None,
-                            help='ID of the element (optional, use -e to specify)')
+                            help='ID of the element')
     datasources_parser.add_argument('signals', type=str, nargs='?', default=None,
                             help='Type of the datasource signal (e.g., active_power, active_energy)')
 

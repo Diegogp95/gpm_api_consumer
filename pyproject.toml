@@ -1,6 +1,6 @@
 [project]
 name = "gpm_api_consumer"
-version = "0.1.3"
+version = "0.1.4"
 description = "Consumidor de la API GPM para uso interno"
 authors = [
     { name = "Diego Gallegos", email = "dgallegos@revergy.es" }
