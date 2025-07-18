@@ -31,3 +31,8 @@ class PlantNotFoundException(GPMException):
         super().__init__(message)
         self.plant_id = plant_id
         self.safe_name = safe_name
+
+class GPMDataRetrievalException(GPMException):
+    """Exception for errors during data retrieval from GPM API."""
+    def __init__(self, message="Error retrieving data from GPM API"):
+        super().__init__(message)

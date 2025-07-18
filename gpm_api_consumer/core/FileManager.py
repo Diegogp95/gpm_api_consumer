@@ -2,6 +2,7 @@ import os, sys
 import logging
 import json
 
+logger = logging.getLogger(__name__)
 
 class FileManager:
     base_data_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'data'))
@@ -18,13 +19,13 @@ class FileManager:
             if not self.data_path.startswith(self.base_data_path):
                 raise ValueError(
                     f"Cannot create data directory outside of base path: {self.data_path}. Make the data_path {self.data_path} exists.")
-            logging.info(f"Creating data directory: {self.data_path}")
+            logger.info(f"Creating data directory: {self.data_path}")
             os.makedirs(self.data_path)
         if not os.path.exists(self.sources_map_path):
             if not self.sources_map_path.startswith(self.base_sources_map_path):
                 raise ValueError(
                     f"Cannot create sources map directory outside of base path: {self.sources_map_path}. Make the sources_map_path {self.sources_map_path} exists.")
-            logging.info(f"Creating sources map directory: {self.sources_map_path}")
+            logger.info(f"Creating sources map directory: {self.sources_map_path}")
             os.makedirs(self.sources_map_path)
 
     def save_data(self, filename, data):
@@ -34,7 +35,7 @@ class FileManager:
         file_path = os.path.join(self.data_path, filename)
         with open(file_path, 'w') as file:
             json.dump(data, file, indent=4)
-        logging.info(f"Saved data to {file_path}")
+        logger.info(f"Saved data to {file_path}")
         return file_path
 
     def load_data(self, filename):
@@ -43,7 +44,7 @@ class FileManager:
             raise FileNotFoundError(f"File {file_path} not found.")
         with open(file_path, 'r') as file:
             data = json.load(file)
-        logging.info(f"Loaded data from {file_path}")
+        logger.info(f"Loaded data from {file_path}")
         return data
 
     def save_sources_map(self, filename, data):
@@ -53,15 +54,15 @@ class FileManager:
         file_path = os.path.join(self.sources_map_path, filename)
         with open(file_path, 'w') as file:
             json.dump(data, file, indent=4)
-        logging.info(f"Saved sources map to {file_path}")
+        logger.info(f"Saved sources map to {file_path}")
         return file_path
 
     def load_sources_map(self, filename):
         file_path = os.path.join(self.sources_map_path, filename)
         if not os.path.exists(file_path):
-            logging.error(f"File {file_path} not found.")
+            logger.error(f"File {file_path} not found.")
             raise FileNotFoundError(f"File {file_path} not found.")
         with open(file_path, 'r') as file:
             data = json.load(file)
-        logging.info(f"Loaded sources map from {file_path}")
+        logger.info(f"Loaded sources map from {file_path}")
         return data

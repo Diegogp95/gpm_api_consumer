@@ -8,6 +8,7 @@ import re
 from gpm_api_consumer.core import exceptions as ex
 from gpm_api_consumer.utils.utils import chunked_iterable, set_logger_level
 from gpm_api_consumer.utils.decorators import handle_authentication
+logger = logging.getLogger(__name__)
 
 class GPMOperator:
     '''
@@ -23,10 +24,10 @@ class GPMOperator:
         """Check if the authentication token is valid."""
         try:
             self.consumer.ping()
-            logging.info("Authentication successful")
+            logger.info("Authentication successful")
         except HTTPError as e:
-            logging.error("Authentication failed")
-            logging.debug(f"Error: {e}")
+            logger.error("Authentication failed")
+            logger.debug(f"Error: {e}")
             raise e
 
     @handle_authentication
@@ -35,11 +36,11 @@ class GPMOperator:
         try:
             plant_response = self.consumer.plant()
             plants = self.interpreter.interpret_plants_response(plant_response)
-            logging.info("Plants retrieved successfully")
+            logger.info("Plant info retrieved successfully")
             return plants
         except HTTPError as e:
-            logging.error("Failed to retrieve plants")
-            logging.debug(f"Error: {e}")
+            logger.error("Failed to retrieve plants")
+            logger.debug(f"Error: {e}")
             raise e
 
     @handle_authentication
@@ -47,11 +48,11 @@ class GPMOperator:
         """Handle the 'plant details' operation."""
         try:
             plant_response = self.consumer.plant(plant_id=plant_id)
-            logging.info(f"Plant details retrieved successfully for plant ID {plant_id}")
+            logger.info(f"Plant details retrieved successfully for plant ID {plant_id}")
             return plant_response
         except HTTPError as e:
-            logging.error("Failed to retrieve plant details")
-            logging.debug(f"Error: {e}")
+            logger.error("Failed to retrieve plant details")
+            logger.debug(f"Error: {e}")
             raise e
     
     @handle_authentication
@@ -60,11 +61,11 @@ class GPMOperator:
         try:
             elements_response = self.consumer.element(plant_id=plant_id)
             grouped_elements, element_types = self.interpreter.interpret_elements_response(elements_response)
-            logging.info(f"Retrieved elements successfully for plant ID {plant_id}")
+            logger.info(f"Retrieved elements successfully for plant ID {plant_id}")
             return grouped_elements, element_types
         except HTTPError as e:
-            logging.error("Failed to retrieve elements")
-            logging.debug(f"Error: {e}")
+            logger.error("Failed to retrieve elements")
+            logger.debug(f"Error: {e}")
             raise e
 
     @handle_authentication
@@ -72,11 +73,11 @@ class GPMOperator:
         """Handle the 'element details' operation."""
         try:
             element_response = self.consumer.element(plant_id=plant_id, element_id=element_id)
-            logging.info(f"Element details retrieved successfully for element ID {element_id} in plant ID {plant_id}")
+            logger.info(f"Element details retrieved successfully for element ID {element_id} in plant ID {plant_id}")
             return element_response
         except HTTPError as e:
-            logging.error("Failed to retrieve element details")
-            logging.debug(f"Error: {e}")
+            logger.error("Failed to retrieve element details")
+            logger.debug(f"Error: {e}")
             raise e
 
     @handle_authentication
@@ -96,11 +97,11 @@ class GPMOperator:
                 else:
                     raise ValueError("Unsupported signal type")
                 result.extend(matched_signals)
-            logging.info(f"Retrieved datasources successfully for plant ID {plant_id} and signals {signals}{' and element ID ' + str(element_id) if element_id else ''}")
+            logger.info(f"Retrieved datasources successfully for plant ID {plant_id} and signals {signals}{' and element ID ' + str(element_id) if element_id else ''}")
             return result
         except HTTPError as e:
-            logging.error("Failed to retrieve datasources")
-            logging.debug(f"Error: {e}")
+            logger.error("Failed to retrieve datasources")
+            logger.debug(f"Error: {e}")
             raise e
 
     @handle_authentication
@@ -117,11 +118,11 @@ class GPMOperator:
                 'aggregationType': aggregationType,
             }
             response = self.consumer.datalistv2(params=params)
-            logging.info("Retrieved datalistv2 successfully")
+            logger.info("Retrieved datalistv2 successfully")
             return response
         except HTTPError as e:
-            logging.error("Failed to retrieve datalistv2")
-            logging.debug(f"Error: {e}")
+            logger.error("Failed to retrieve datalistv2 from GPM API")
+            logger.debug(f"Error: {e}")
             raise e
 
     def handle_datasources_map(self, plant_id: int, table: str):
@@ -138,7 +139,7 @@ class GPMOperator:
         else:
             raise ValueError("Invalid table type. Expected 'gen' or 'weather'.")
         path = self.file_manager.save_sources_map(f"{plant['safe_name']}_{table}_map.json", map)
-        logging.info(f"Datasources map saved successfully for plant {plant['name']} in {path}")
+        logger.info(f"Datasources map saved successfully for plant {plant['name']} in {path}")
         return path
 
     def gen_datasources_map_pipeline(self, plant_id: int):
@@ -158,13 +159,13 @@ class GPMOperator:
         strings_match = next((key for key in element_types if re.fullmatch(strings_patterns, key)), None)
 
         if not inverters_match:
-            logging.error("No inverters found")
+            logger.error("No inverters found")
             raise ex.NoInvertersFoundError("No inverters match with the plant's elements")
         if not meter_match:
-            logging.error("No meter found")
+            logger.error("No meter found")
             raise ex.NoMeterFoundError("No meter match with the plant's elements")
         if not strings_match:
-            logging.error("No strings found")
+            logger.error("No strings found")
             raise ex.NoStringsFoundError("No strings match with the plant's elements")
 
         inverter_elements = elements[inverters_match]
@@ -191,7 +192,7 @@ class GPMOperator:
                     break
 
             if ct_index is None:
-                logging.warning(f"No CT index found for inverter name: {inverter['name']}")
+                logger.warning(f"No CT index found for inverter name: {inverter['name']}")
                 continue
 
             while len(inverters_per_ct) < ct_index:
@@ -210,7 +211,7 @@ class GPMOperator:
                     inverter_index = int(match.group(2))
                     break
             if ct_index is None or inverter_index is None:
-                logging.warning(f"No CT index found for inverter name: {inverter['name']}")
+                logger.warning(f"No CT index found for inverter name: {inverter['name']}")
                 continue
             # if at least one inverter has a number greater than the number of inverters per ct, we need to reset the index
             if inverter_index > inverters_per_ct[ct_index - 1]:
@@ -223,7 +224,7 @@ class GPMOperator:
         meter_datasources = []
         strings_datasources = []
 
-        logging.info(f"Retrieving gen table datasources for plant ID {plant_id}")
+        logger.info(f"Retrieving gen table datasources for plant ID {plant_id}")
         for inverter in inverter_elements:
             inverter_datasources = set_logger_level(logging.WARNING)(self.handle_datasources)(
                 plant_id=plant_id, signals=['active_power'], element_id=inverter['id']
@@ -243,9 +244,9 @@ class GPMOperator:
                 plant_id=plant_id, signals=['active_energy'], element_id=meter['id']
             )
             if len(meter_power_sources) > 1:
-                logging.warning(f"More than one power source found for meter {meter['name']}, using the first one: {meter_power_sources[0]['name']}")
+                logger.warning(f"More than one power source found for meter {meter['name']}, using the first one: {meter_power_sources[0]['name']}")
             if len(meter_energy_sources) > 1:
-                logging.warning(f"More than one energy source found for meter {meter['name']}, using the first one: {meter_energy_sources[0]['name']}")
+                logger.warning(f"More than one energy source found for meter {meter['name']}, using the first one: {meter_energy_sources[0]['name']}")
 
             meter_datasources.append({
                 # name for meter signals is traduced to the signal name
@@ -275,7 +276,7 @@ class GPMOperator:
                 'datasource_unit': string_datasources[0]['units'],
             })
 
-        logging.info(f"Gen datasources map retrieved successfully for plant ID {plant_id}")
+        logger.info(f"Gen datasources map retrieved successfully for plant ID {plant_id}")
         return inverters_datasources + meter_datasources + strings_datasources
 
     def weather_datasources_map_pipeline(self, plant_id: int):
@@ -317,7 +318,7 @@ class GPMOperator:
                         break
 
         weather_datasources = []
-        logging.info(f"Retrieving weather table datasources for plant ID {plant_id}")
+        logger.info(f"Retrieving weather table datasources for plant ID {plant_id}")
         for weather_station in weather_stations_matches:
             # No need for INFO logs
             weather_station_datasources = set_logger_level(logging.WARNING)(self.handle_datasources)(
@@ -372,7 +373,7 @@ class GPMOperator:
                         'datasource_name': source['DataSourceName'],
                         'datasource_unit': source['Units'],
                     })
-        logging.info(f"Weather datasources map retrieved successfully for plant ID {plant_id}")
+        logger.info(f"Weather datasources map retrieved successfully for plant ID {plant_id}")
         return weather_datasources
     
     def _find_plant(self, plant_id: int = None, plant_name: str = None):
@@ -398,9 +399,9 @@ class GPMOperator:
         Handles the data pipeline for a specific plant ID or safe_name.
         """
         plant = self._find_plant(plant_id=plant_id, plant_name=plant_name)
-        logging.info(f"Starting data pipeline for plant ID {plant['id']}")
+        logger.info(f"Starting data pipeline for plant ID {plant['id']}")
         gen_path, weather_path = self.handle_plant_data_pipeline(plant, startDate, endDate)
-        logging.info(f"Data pipeline completed for plant ID {plant['id']}")
+        logger.info(f"Data pipeline completed for plant ID {plant['id']}")
         return gen_path, weather_path
 
     def handle_plant_data_pipeline(self, plant, startDate: str, endDate: str):
@@ -411,23 +412,23 @@ class GPMOperator:
             'grouping': 'minute',
             'granularity': 15,
         }
-        logging.info(f"Starting data pipeline for plant {plant['name']}")
+        logger.info(f"Starting data pipeline for plant {plant['name']}")
         try:
             gen_datasources_map = self.file_manager.load_sources_map(f"{plant['safe_name']}_gen_map.json")
-            logging.info(f"Gen datasources map loaded for plant {plant['name']}")
+            logger.info(f"Gen datasources map loaded for plant {plant['name']}")
         except FileNotFoundError:
-            logging.info(f"Gen datasources map not found for plant {plant['name']}, creating it...")
+            logger.info(f"Gen datasources map not found for plant {plant['name']}, creating it...")
             gen_datasources_map = self.gen_datasources_map_pipeline(plant_id=plant['id'])
             gen_map_path = self.file_manager.save_sources_map(f"{plant['safe_name']}_gen_map.json", gen_datasources_map)
-            logging.info(f"Gen datasources map created for plant {plant['name']}")
+            logger.info(f"Gen datasources map created for plant {plant['name']}")
         try:
             weather_datasources_map = self.file_manager.load_sources_map(f"{plant['safe_name']}_weather_map.json")
-            logging.info(f"Weather datasources map loaded for plant {plant['name']}")
+            logger.info(f"Weather datasources map loaded for plant {plant['name']}")
         except FileNotFoundError:
-            logging.info(f"Weather datasources map not found for plant {plant['name']}, creating it...")
+            logger.info(f"Weather datasources map not found for plant {plant['name']}, creating it...")
             weather_datasources_map = self.weather_datasources_map_pipeline(plant_id=plant['id'])
             weather_map_path = self.file_manager.save_sources_map(f"{plant['safe_name']}_weather_map.json", weather_datasources_map)
-            logging.info(f"Weather datasources map created for plant {plant['name']}")
+            logger.info(f"Weather datasources map created for plant {plant['name']}")
         power_sources = [source for source in gen_datasources_map if re.search(r"power", source['datasource_name'], re.IGNORECASE)]
         energy_sources = [source for source in gen_datasources_map if re.search(r"energy", source['datasource_name'], re.IGNORECASE)]
         power_params = {
@@ -440,19 +441,28 @@ class GPMOperator:
         }
         power_datasource_ids = [source['datasource_id'] for source in power_sources]
         energy_datasource_ids = [source['datasource_id'] for source in energy_sources]
-        power_raw_responses = [
-            self.handle_datalistv2(
-                dataSourceIds=ids_chunk,
-                **power_params
-            ) for ids_chunk in chunked_iterable(power_datasource_ids, 10)
-        ]
-        energy_raw_responses = [
-            self.handle_datalistv2(
-                dataSourceIds=ids_chunk,
-                **energy_params
-            ) for ids_chunk in chunked_iterable(energy_datasource_ids, 10)
-        ]
-        logging.info(f"Data retrieved for plant {plant['name']}, formatting it...")
+        # Power Get query to GPM API
+        try:
+            power_raw_responses = [
+                self.handle_datalistv2(
+                    dataSourceIds=ids_chunk,
+                    **power_params
+                ) for ids_chunk in chunked_iterable(power_datasource_ids, 10)
+            ]
+            logger.info(f"Power data retrieved for plant {plant['name']}, formatting it...")
+        except HTTPError as e:
+            raise ex.GPMDataRetrievalException(f"Error retrieving power data") from e
+        # Energy Get query to GPM API
+        try:
+            energy_raw_responses = [
+                self.handle_datalistv2(
+                    dataSourceIds=ids_chunk,
+                    **energy_params
+                ) for ids_chunk in chunked_iterable(energy_datasource_ids, 10)
+            ]
+            logger.info(f"Energy data retrieved for plant {plant['name']}, formatting it...")
+        except HTTPError as e:
+            raise ex.GPMDataRetrievalException(f"Error retrieving energy data") from e
         traduced_responses = [
             self.interpreter.traduce_datalist_response(response, gen_datasources_map)
             for response in power_raw_responses + energy_raw_responses
@@ -461,17 +471,22 @@ class GPMOperator:
         gen_path = self.file_manager.save_data(
                 f'{plant["safe_name"]}_gen_{startDate.replace(":", "")}_{endDate.replace(":", "")}.json',
                 joined_gen_response)
+        # Weather params definition
         weather_params = {
             **datalist_params,
             'aggregationType': 1,
         }
-        weather_datasource_ids = [source['datasource_id'] for source in weather_datasources_map]
-        weather_raw_responses = [
-            self.handle_datalistv2(
-                dataSourceIds=ids_chunk,
-                **weather_params
-            ) for ids_chunk in chunked_iterable(weather_datasource_ids, 10)
-        ]
+        # Weather Get query to GPM API
+        try:
+            weather_datasource_ids = [source['datasource_id'] for source in weather_datasources_map]
+            weather_raw_responses = [
+                self.handle_datalistv2(
+                    dataSourceIds=ids_chunk,
+                    **weather_params
+                ) for ids_chunk in chunked_iterable(weather_datasource_ids, 10)
+            ]
+        except HTTPError as e:
+            raise ex.GPMDataRetrievalException(f"Error retrieving weather data") from e
         weather_traduced_responses = [
             self.interpreter.traduce_datalist_response(response, weather_datasources_map)
             for response in weather_raw_responses
@@ -480,7 +495,7 @@ class GPMOperator:
         weather_path = self.file_manager.save_data(
                 f'{plant["safe_name"]}_weather_{startDate.replace(":", "")}_{endDate.replace(":", "")}.json',
                 joined_weather_response)
-        logging.info(f"Data pipeline completed for plant {plant['name']}")
+        logger.info(f"Data pipeline completed for plant {plant['name']}")
         return gen_path, weather_path
 
     def args_handler(self, args, keys):

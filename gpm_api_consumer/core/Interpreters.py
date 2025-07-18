@@ -3,6 +3,8 @@ import re
 import logging
 from gpm_api_consumer.utils import normalize_name
 
+logger = logging.getLogger(__name__)
+
 class GPMInterpreter:
     '''
     Interpreter for GPM (Green Power Monitor) API responses.
@@ -123,8 +125,8 @@ class GPMInterpreter:
             return result
 
         except Exception as e:
-            logging.error("Failed to traduce datalist response")
-            logging.debug(f"Error: {e}")
+            logger.error("Failed to traduce datalist response")
+            logger.debug(f"Error: {e}")
             raise e
 
     def format_inverter_name(self, inverter_name: str, inverters_per_ct: List[int], reset_inv: bool) -> str:
@@ -146,9 +148,9 @@ class GPMInterpreter:
                     inv_number = inv_number - sum(inverters_per_ct[:ct_index - 1])
                 if inv_number < 1 or inv_number > inverters_per_ct[ct_index - 1]:
                     raise ValueError(f"Invalid inverter number {inv_number} for CT {ct_index}. While processing inverter name {inverter_name}.")
-                logging.debug(f"Formatted {inverter_name} -> ct{ct_index:02d}_inv{inv_number:02d}")
+                logger.debug(f"Formatted {inverter_name} -> ct{ct_index:02d}_inv{inv_number:02d}")
                 return f"ct{ct_index:02d}_inv{inv_number:02d}"
-        logging.warning(f"No pattern matched for inverter name: {inverter_name}")
+        logger.warning(f"No pattern matched for inverter name: {inverter_name}")
         return inverter_name
 
     def format_string_name(self, name: str, inverters_per_ct: List[int], reset_inv: bool) -> str:
@@ -172,8 +174,8 @@ class GPMInterpreter:
                     inv_number = inv_number - sum(inverters_per_ct[:ct_index - 1])
                 if inv_number < 1 or inv_number > inverters_per_ct[ct_index - 1]:
                     raise ValueError(f"Invalid inverter number {inv_number} for CT {ct_index}. While processing string name {name}.")
-                logging.debug(f"Formatted {name} -> ct{ct_index:02d}_{inv_number:02d}_str{string_number:02d}")
+                logger.debug(f"Formatted {name} -> ct{ct_index:02d}_{inv_number:02d}_str{string_number:02d}")
                 return f"ct{ct_index:02d}_{inv_number:02d}_str{string_number:02d}"
 
-        logging.warning(f"No pattern matched for string name: {name}")
+        logger.warning(f"No pattern matched for string name: {name}")
         return name
