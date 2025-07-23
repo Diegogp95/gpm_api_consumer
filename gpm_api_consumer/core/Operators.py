@@ -8,6 +8,7 @@ import re
 from gpm_api_consumer.core import exceptions as ex
 from gpm_api_consumer.utils.utils import chunked_iterable, set_logger_level
 from gpm_api_consumer.utils.decorators import handle_authentication
+import os
 logger = logging.getLogger(__name__)
 
 class GPMOperator:
@@ -468,9 +469,8 @@ class GPMOperator:
             for response in power_raw_responses + energy_raw_responses
         ]
         joined_gen_response = self.interpreter.join_time_series_responses(traduced_responses)
-        gen_path = self.file_manager.save_data(
-                f'{plant["safe_name"]}_gen_{startDate.replace(":", "")}_{endDate.replace(":", "")}.json',
-                joined_gen_response)
+        gen_json, weather_json = self.generate_paths(plant, startDate, endDate)
+        gen_path = self.file_manager.save_data(gen_json, joined_gen_response)
         # Weather params definition
         weather_params = {
             **datalist_params,
@@ -492,9 +492,7 @@ class GPMOperator:
             for response in weather_raw_responses
         ]
         joined_weather_response = self.interpreter.join_time_series_responses(weather_traduced_responses)
-        weather_path = self.file_manager.save_data(
-                f'{plant["safe_name"]}_weather_{startDate.replace(":", "")}_{endDate.replace(":", "")}.json',
-                joined_weather_response)
+        weather_path = self.file_manager.save_data(weather_json, joined_weather_response)
         logger.info(f"Data pipeline completed for plant {plant['name']}")
         return gen_path, weather_path
 
@@ -523,3 +521,34 @@ class GPMOperator:
                     else:
                         kwargs[key] = expected_type(getattr(args, key))
         return kwargs
+
+    def generate_paths(self, plant, startDate: str, endDate: str):
+        """
+        Generates the file paths for the data files based on the plant's safe name and the date range.
+        """
+        gen_path = os.path.join(
+            self.file_manager.data_path,
+            f"{plant['safe_name']}_gen_{startDate.replace(':', '')}_{endDate.replace(':', '')}.json"
+        )
+        weather_path = os.path.join(
+            self.file_manager.data_path,
+            f"{plant['safe_name']}_weather_{startDate.replace(':', '')}_{endDate.replace(':', '')}.json"
+        )
+        return gen_path, weather_path
+
+    def get_start_end_dates(self, date, start_date, end_date):
+        """
+        Formats the date or start_date and end_date into the required format for the API.
+        """
+
+        from datetime import datetime, timedelta
+        if date:
+            startDate = date + "T00:00:00"
+            endDate = (datetime.strptime(date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%dT00:00:00")
+        elif start_date and end_date:
+            startDate = start_date + "T00:00:00"
+            endDate = (datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%dT00:00:00")
+        else:
+            raise ValueError("Either date or both start_date and end_date must be provided.")
+
+        return startDate, endDate
