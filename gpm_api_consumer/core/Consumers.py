@@ -1,5 +1,6 @@
 from .Client import APIClient
 from .ConfigManager import ConfigManager
+from gpm_api_consumer.utils.decorators import handle_authentication
 
 
 class GPMConsumer:
@@ -32,6 +33,7 @@ class GPMConsumer:
         )
         self.client = APIClient(self.config_manager._env['API_BASE_URL'])
 
+    @handle_authentication
     def get(self, endpoint, params=None):
         '''
         Get data from the GPM API.
@@ -41,6 +43,7 @@ class GPMConsumer:
         response = self.client.get(endpoint, headers=headers, params=params)
         return response
 
+    @handle_authentication
     def post(self, endpoint, data=None):
         '''
         Post data to the GPM API.
@@ -57,7 +60,9 @@ class GPMConsumer:
         username = self.config_manager._env['API_USERNAME']
         password = self.config_manager._env['API_PASSWORD']
         data = { 'username': username, 'password': password }
-        response = self.post('/api/Account/Token', data=data)
+        token = self.config_manager.get('api_token')
+        headers = { 'Authorization': f'Bearer {token}' }
+        response = self.client.post('/api/Account/Token', json=data, headers=headers)
         if 'AccessToken' in response:
             self.config_manager.set('api_token', response['AccessToken'])
             return response['AccessToken']
