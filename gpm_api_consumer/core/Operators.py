@@ -451,7 +451,7 @@ class GPMOperator:
             ]
             logger.info(f"Power data retrieved for plant {plant['name']}, formatting it...")
         except HTTPError as e:
-            raise ex.GPMDataRetrievalException(f"Error retrieving power data") from e
+            raise ex.DataRetrievalException(f"Error retrieving power data") from e
         # Energy Get query to GPM API
         try:
             energy_raw_responses = [
@@ -462,7 +462,7 @@ class GPMOperator:
             ]
             logger.info(f"Energy data retrieved for plant {plant['name']}, formatting it...")
         except HTTPError as e:
-            raise ex.GPMDataRetrievalException(f"Error retrieving energy data") from e
+            raise ex.DataRetrievalException(f"Error retrieving energy data") from e
         traduced_responses = [
             self.interpreter.traduce_datalist_response(response, gen_datasources_map)
             for response in power_raw_responses + energy_raw_responses
@@ -486,7 +486,7 @@ class GPMOperator:
                 ) for ids_chunk in chunked_iterable(weather_datasource_ids, 10)
             ]
         except HTTPError as e:
-            raise ex.GPMDataRetrievalException(f"Error retrieving weather data") from e
+            raise ex.DataRetrievalException(f"Error retrieving weather data") from e
         weather_traduced_responses = [
             self.interpreter.traduce_datalist_response(response, weather_datasources_map)
             for response in weather_raw_responses
