@@ -8,6 +8,7 @@ class APIClient:
     def get(self, endpoint, headers=None, params=None):
         response = requests.get(f"{self.base_url}{endpoint}",
                                     headers=headers, params=params)
+        print(f"endpoint {endpoint}. params: {params}, headers: {headers}")
         response.raise_for_status()
         try:
             # Attempt to parse the response as JSON
