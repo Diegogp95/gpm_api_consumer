@@ -10,15 +10,15 @@ def handle_authentication(func):
     Retries the operation if a 401 Unauthorized error occurs.
     """
     @wraps(func)
-    def wrapper(operator, *args, **kwargs):
+    def wrapper(consumer, *args, **kwargs):
         try:
-            return func(operator, *args, **kwargs)
+            return func(consumer, *args, **kwargs)
         except HTTPError as e:
             if e.response.status_code == 401:
                 logger.info("Token expired. Re-authenticating...")
-                operator.consumer.login()
+                consumer.login()
                 logger.info("Re-authentication successful. Retrying operation...")
-                return func(operator, *args, **kwargs)
+                return func(consumer, *args, **kwargs)
             else:
                 logger.error("Operation failed")
                 logger.debug(f"Error: {e}")

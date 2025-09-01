@@ -60,9 +60,9 @@ class GPMConsumer:
         username = self.config_manager._env['API_USERNAME']
         password = self.config_manager._env['API_PASSWORD']
         data = { 'username': username, 'password': password }
-        token = self.config_manager.get('api_token')
-        headers = { 'Authorization': f'Bearer {token}' }
-        response = self.client.post('/api/Account/Token', json=data, headers=headers)
+        # Don't use existing token for login request
+        response = self.client.post('/api/Account/Token', json=data)
+
         if 'AccessToken' in response:
             self.config_manager.set('api_token', response['AccessToken'])
             return response['AccessToken']
