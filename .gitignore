@@ -14,3 +14,7 @@ dist/
 build/
 *.egg
 *.whl
+
+# editors
+.vscode/
+.idea/

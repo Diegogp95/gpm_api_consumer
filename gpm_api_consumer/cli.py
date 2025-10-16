@@ -1,4 +1,4 @@
-from gpm_api_consumer.core.Operators import GPMOperator
+from gpm_api_consumer.core.CLIOperator import CLIOperator
 import logging
 import argparse
 import json
@@ -14,14 +14,14 @@ def main():
     ## General options
     parser.add_argument('-l', '--loglevel', type=str, default='info',
                         help='Set the logging level (debug, info, warning, error, critical)')
-    parser.add_argument('-i', '--interactive', action='store_true',
-                        help='Run in interactive mode')
     parser.add_argument('-f', '--file', action='store_true',
                         help='Load parameters from the config file')
+    parser.add_argument("-p", "--portfolio", type=str, required=False, default="biwo",
+        help="Portfolio name (default: 'biwo')")
 
     subparsers = parser.add_subparsers(dest='operation', required=True,
                             help='Available operations:')
-    
+
     # Operation: config
     config_parser = subparsers.add_parser('config', help='Manage config values')
     config_subparsers = config_parser.add_subparsers(dest='action', required=True)
@@ -39,16 +39,22 @@ def main():
 
     # Operation: plants
     plant_parser = subparsers.add_parser('plants', help='List all plants')
+    plant_parser.add_argument('-o','--output', type=str, nargs='?', const=True, default=None,
+                        help='Path to save data files. If no filename provided, generates one automatically')
 
     # Operation: plant_detail
     plant_detail_parser = subparsers.add_parser('plant_detail', help='Get details of a specific plant')
     plant_detail_parser.add_argument('plant_id', type=int, nargs='?', default=None,
                             help='ID of the plant')
+    plant_detail_parser.add_argument('-o','--output', type=str, nargs='?', const=True, default=None,
+                        help='Path to save data files. If no filename provided, generates one automatically')
 
     # Operation: elements
     elements_parser = subparsers.add_parser('elements', help='List all elements of a plant')
     elements_parser.add_argument('plant_id', type=int, nargs='?', default=None,
                             help='ID of the plant')
+    elements_parser.add_argument('-o','--output', type=str, nargs='?', const=True, default=None,
+                        help='Path to save data files. If no filename provided, generates one automatically')
 
     # Operation: element_detail
     element_detail_parser = subparsers.add_parser('element_detail', help='Get details of a specific element')
@@ -56,6 +62,8 @@ def main():
                             help='ID of the plant')
     element_detail_parser.add_argument('element_id', type=int, nargs='?', default=None,
                             help='ID of the element')
+    element_detail_parser.add_argument('-o','--output', type=str, nargs='?', const=True, default=None,
+                        help='Path to save data files. If no filename provided, generates one automatically')
 
     # Operation: datasources (per element)
     datasources_parser = subparsers.add_parser('datasources',
@@ -64,16 +72,16 @@ def main():
                             help='ID of the plant')
     datasources_parser.add_argument('element_id', type=int, nargs='?', default=None,
                             help='ID of the element')
-    datasources_parser.add_argument('signals', type=str, nargs='?', default=None,
-                            help='Type of the datasource signal (e.g., active_power, active_energy)')
+    datasources_parser.add_argument('-o','--output', type=str, nargs='?', const=True, default=None,
+                        help='Path to save data files. If no filename provided, generates one automatically')
 
     # Operation: plant_datasources
     plant_datasources_parser = subparsers.add_parser('plant_datasources',
                                 help='List all datasources of a plant')
     plant_datasources_parser.add_argument('plant_id', type=int, nargs='?', default=None,
                             help='ID of the plant')
-    plant_datasources_parser.add_argument('signals', type=str, nargs='?', default=None,
-                            help='Type of the datasource signal (e.g., active_power, active_energy)')
+    plant_datasources_parser.add_argument('-o','--output', type=str, nargs='?', const=True, default=None,
+                        help='Path to save data files. If no filename provided, generates one automatically')
 
     # Operation: datalistv2
     datalist_parser = subparsers.add_parser('datalistv2',
@@ -90,25 +98,8 @@ def main():
                             help='Granularity for the grouping method (e.g., 1, 5, 15)')
     datalist_parser.add_argument('aggregationType', type=int, nargs='?',
                             help='Aggregation type (e.g., 0 for sum w/o zeros, 1 for average)')
-
-    # Operation: datasources_map
-    datasources_map_parser = subparsers.add_parser('datasources_map',
-                                help='Constructs a map of datasources for the gen or weather table')
-    datasources_map_parser.add_argument('plant_id', type=int, nargs='?',
-                            help='ID of the plant')
-    datasources_map_parser.add_argument('table', type=str, nargs='?',
-                            help='Table name (e.g., "gen", "weather")')
-
-    # Operation: plant_data_pipeline
-    plant_data_pipeline_parser = subparsers.add_parser('plant_data_pipeline',
-                                help='Get data from the GPM API using a full data pipeline')
-    group = plant_data_pipeline_parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('--plant_id', type=int, help='ID of the plant')
-    group.add_argument('--plant_name', type=str, help='Name of the plant')
-    plant_data_pipeline_parser.add_argument('startDate', type=str, nargs='?',
-                            help='Start date in YYYY-MM-DDTHH:MM:SS format')
-    plant_data_pipeline_parser.add_argument('endDate', type=str, nargs='?',
-                            help='End date in YYYY-MM-DDTHH:MM:SS format')
+    datalist_parser.add_argument('-o','--output', type=str, nargs='?', const=True, default=None,
+                            help='Path to save data files. If no filename provided, generates one automatically')
 
     args = parser.parse_args()
 
@@ -118,7 +109,7 @@ def main():
     logger = logging.getLogger(__name__)
     logger.setLevel(loglevel)
 
-    operator = GPMOperator()
+    operator = CLIOperator(prefix=args.portfolio)
     if args.operation != 'config':
         operator.check_auth()
 
@@ -140,67 +131,48 @@ def main():
             print("Config reset successfully.")
         else:
             print(f"Usage: {parser.format_help()}")
+
     elif args.operation == 'plants':
         plants = operator.handle_plants()
-        print("Plants:")
-        print(json.dumps(plants, indent=4))
+        operator.handle_output(plants, "plants", getattr(args, 'output', None))
 
     elif args.operation == 'plant_detail':
         kwargs = operator.args_handler(args, ['plant_id'])
         result = operator.handle_plant_details(**kwargs)
         print(f"Details of plant {kwargs['plant_id']}:")
-        print(json.dumps(result, indent=4))
+        operator.handle_output(result, "plant_detail", getattr(args, 'output', None))
 
     elif args.operation == 'elements':
         kwargs = operator.args_handler(args, ['plant_id'])
-        result, element_types = operator.handle_elements(**kwargs)
+        raw_elements = operator.handle_elements(**kwargs)
         print(f"Elements in plant {kwargs['plant_id']}:")
-        for element_type in element_types:
-            print(f"\t{element_type}")
-        print(json.dumps(result, indent=4))
+        operator.handle_output(raw_elements, "elements", getattr(args, 'output', None))
 
     elif args.operation == 'element_detail':
         kwargs = operator.args_handler(args, ['plant_id', 'element_id'])
         result = operator.handle_element_details(**kwargs)
         print(f"Details of element {kwargs['element_id']} in plant {kwargs['plant_id']}:")
-        print(json.dumps(result, indent=4))
+        operator.handle_output(result, "element_detail", getattr(args, 'output', None))
 
     elif args.operation == 'datasources':
-        kwargs = operator.args_handler(args, ['plant_id', 'element_id', 'signals'])
+        kwargs = operator.args_handler(args, ['plant_id', 'element_id'])
         result = operator.handle_datasources(**kwargs)
-        print(f"Datasources of signals {kwargs['signals']} in plant {kwargs['plant_id']} and element {kwargs['element_id']}:")
-        print(json.dumps(result, indent=4))
+        print(f"Datasources in plant {kwargs['plant_id']} and element {kwargs['element_id']}:")
+        operator.handle_output(result, "datasources", getattr(args, 'output', None))
 
     elif args.operation == 'plant_datasources':
-        kwargs = operator.args_handler(args, ['plant_id', 'signals'])
+        kwargs = operator.args_handler(args, ['plant_id'])
         result = operator.handle_datasources(**kwargs)
-        print(f"Datasources of signals {kwargs['signals']} in plant {kwargs['plant_id']}:")
-        print(json.dumps(result, indent=4))
-
-    elif args.operation == 'datasources_map':
-        kwargs = operator.args_handler(args, ['plant_id', 'table'])
-        result = operator.handle_datasources_map(**kwargs)
-        print(f"Datasources map for table {kwargs['table']} in plant {kwargs['plant_id']}:")
-        print(json.dumps(result, indent=4))
+        print(f"Datasources in plant {kwargs['plant_id']}:")
+        operator.handle_output(result, "plant_datasources", getattr(args, 'output', None))
 
     elif args.operation == 'datalistv2':
         kwargs = operator.args_handler(args, ['dataSourceIds', 'startDate',
                         'endDate', 'grouping', 'granularity', 'aggregationType'])
         result = operator.handle_datalistv2(**kwargs)
         print(f"Datalistv2 with dataSourceIds {kwargs['dataSourceIds']}, startDate {kwargs['startDate']}, endDate {kwargs['endDate']}, grouping {kwargs['grouping']}, granularity {kwargs['granularity']} and aggregationType {kwargs['aggregationType']}:")
-        print(json.dumps(result, indent=4))
+        operator.handle_output(result, "datalistv2", getattr(args, 'output', None))
 
-    elif args.operation == 'plant_data_pipeline':
-        arg_keys = []
-        if getattr(args, 'plant_id', None) is not None:
-            arg_keys.append('plant_id')
-        elif getattr(args, 'plant_name', None) is not None:
-            arg_keys.append('plant_name')
-        arg_keys += ['startDate', 'endDate']
-        kwargs = operator.args_handler(args, arg_keys)
-        result = operator.handle_plant_id_name_data_pipeline(**kwargs)
-        print(f"Full data pipeline with startDate {kwargs['startDate']} and endDate {kwargs['endDate']}:")
-        print(json.dumps(result, indent=4))
 
 if __name__ == "__main__":
     main()
