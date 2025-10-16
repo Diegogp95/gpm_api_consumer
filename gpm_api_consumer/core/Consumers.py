@@ -20,8 +20,6 @@ class GPMConsumer:
         'grouping': str,
         'granularity': int,
         'aggregationType': int,
-        'signals': (list, str),
-        'table': str,
     }
 
     def __init__(self, prefix='gpm'):
@@ -69,6 +67,7 @@ class GPMConsumer:
         else:
             raise Exception("Failed to login and get token.")
 
+    @handle_authentication
     def ping(self):
         '''
         Check if the API is reachable and the token is valid.
